@@ -1,0 +1,214 @@
+-- =============================================================
+-- THỊNH ĐẸP TRAI - PRO VERSION (ANTI-VOID + WALL BLOCK)
+-- =============================================================
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local LocalPlayer = Players.LocalPlayer
+
+-- 1. DỌN DẸP UI CŨ
+if CoreGui:FindFirstChild("ThinhFixed_UI") then
+    CoreGui.ThinhFixed_UI:Destroy()
+end
+
+-- 2. CẤU HÌNH
+local IsEnabled = false
+local Speed = 120 
+local BodyVel = nil 
+local BodyGyro = nil
+local BarrierPart = nil 
+
+-- Biến cho Cam Xuyên Tường
+local CamNoClipEnabled = false
+local DefaultMaxZoom = LocalPlayer.CameraMaxZoomDistance
+local DefaultOcclusion = LocalPlayer.DevCameraOcclusionMode
+
+-- === [CÀI CỨNG VỊ TRÍ TƯỜNG] ===
+local PointA = Vector3.new(135.985291, 3.17998266, 138.032028)
+local PointB = Vector3.new(1275.04187, 3.17999005, 137.223465)
+local FixedOffset = 4 
+local WallHeight = 500
+local WallThickness = 4
+
+-- Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- 3. HÀM DỰNG TƯỜNG (BẤT KHẢ XÂM PHẠM)
+local function CreateFixedWall()
+    if Workspace:FindFirstChild("GridBorder") then Workspace.GridBorder:Destroy() end
+    local Wall = Instance.new("Part")
+    Wall.Name = "GridBorder"; Wall.Anchored = true; Wall.CanCollide = true; Wall.Transparency = 0.5 
+    Wall.Color = Color3.fromRGB(0, 255, 255); Wall.Material = Enum.Material.ForceField; Wall.Parent = Workspace
+    
+    local Distance = (PointA - PointB).Magnitude
+    local MidPoint = (PointA + PointB) / 2
+    local BaseCFrame = CFrame.lookAt(MidPoint, PointB)
+    local RightDir = BaseCFrame.RightVector
+    local FinalPos = MidPoint + (RightDir * FixedOffset)
+    
+    Wall.Size = Vector3.new(WallThickness, WallHeight, Distance)
+    Wall.CFrame = CFrame.lookAt(FinalPos, PointB + (RightDir * FixedOffset))
+    Wall.Position = Vector3.new(FinalPos.X, MidPoint.Y + (WallHeight / 2), FinalPos.Z)
+    BarrierPart = Wall
+    return Wall
+end
+
+-- 4. GIAO DIỆN (UI)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ThinhFixed_UI"; ScreenGui.Parent = CoreGui; ScreenGui.ResetOnSpawn = false 
+
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Parent = ScreenGui; OpenBtn.Text = "MỞ MENU"; OpenBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 255); OpenBtn.Size = UDim2.new(0, 100, 0, 30); OpenBtn.Position = UDim2.new(0, 10, 0.5, 0); OpenBtn.Visible = false
+Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(0, 8)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui; MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35); MainFrame.Position = UDim2.new(0.5, -150, 0.3, 0); MainFrame.Size = UDim2.new(0, 300, 0, 250); MainFrame.Active = true; MainFrame.Draggable = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 15)
+Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(0, 255, 255); Instance.new("UIStroke", MainFrame).Thickness = 2
+
+local Title = Instance.new("TextLabel"); Title.Parent = MainFrame; Title.Text = "THỊNH ĐẸP TRAI"; Title.Font = Enum.Font.GothamBlack; Title.TextColor3 = Color3.fromRGB(255, 255, 0); Title.TextSize = 20; Title.Size = UDim2.new(1, 0, 0, 60); Title.BackgroundTransparency = 1
+
+-- NÚT BẬT/TẮT HACK
+local BtnYes = Instance.new("TextButton"); BtnYes.Parent = MainFrame; BtnYes.Text = "BẬT HACK"; BtnYes.BackgroundColor3 = Color3.fromRGB(0, 200, 100); BtnYes.TextColor3 = Color3.fromRGB(255,255,255); BtnYes.Size = UDim2.new(0.4, 0, 0, 40); BtnYes.Position = UDim2.new(0.07, 0, 0.3, 0); Instance.new("UICorner", BtnYes).CornerRadius = UDim.new(0, 8)
+local BtnNo = Instance.new("TextButton"); BtnNo.Parent = MainFrame; BtnNo.Text = "TẮT HACK"; BtnNo.BackgroundColor3 = Color3.fromRGB(200, 50, 50); BtnNo.TextColor3 = Color3.fromRGB(255,255,255); BtnNo.Size = UDim2.new(0.4, 0, 0, 40); BtnNo.Position = UDim2.new(0.53, 0, 0.3, 0); Instance.new("UICorner", BtnNo).CornerRadius = UDim.new(0, 8)
+
+-- NÚT CAM XUYÊN TƯỜNG
+local BtnCamHack = Instance.new("TextButton"); BtnCamHack.Parent = MainFrame; BtnCamHack.Text = "CAM XUYÊN TƯỜNG: OFF"; BtnCamHack.BackgroundColor3 = Color3.fromRGB(60, 60, 60); BtnCamHack.TextColor3 = Color3.fromRGB(255,255,255); BtnCamHack.Size = UDim2.new(0.86, 0, 0, 40); BtnCamHack.Position = UDim2.new(0.07, 0, 0.55, 0); Instance.new("UICorner", BtnCamHack).CornerRadius = UDim.new(0, 8); BtnCamHack.Font = Enum.Font.GothamBold
+
+-- Nút Thu Nhỏ
+local MiniBtn = Instance.new("TextButton"); MiniBtn.Parent = MainFrame; MiniBtn.Text = "–"; MiniBtn.BackgroundTransparency = 1; MiniBtn.TextColor3 = Color3.fromRGB(255,255,255); MiniBtn.TextSize = 30; MiniBtn.Size = UDim2.new(0, 30, 0, 30); MiniBtn.Position = UDim2.new(1, -30, 0, 0)
+MiniBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false; OpenBtn.Visible = true end)
+OpenBtn.MouseButton1Click:Connect(function() MainFrame.Visible = true; OpenBtn.Visible = false end)
+
+-- 5. LOGIC CAM XUYÊN TƯỜNG (MAX ZOOM)
+local function ToggleCamHack()
+    CamNoClipEnabled = not CamNoClipEnabled
+    if CamNoClipEnabled then
+        BtnCamHack.Text = "CAM XUYÊN TƯỜNG: ON"
+        BtnCamHack.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        DefaultMaxZoom = LocalPlayer.CameraMaxZoomDistance
+        DefaultOcclusion = LocalPlayer.DevCameraOcclusionMode
+        LocalPlayer.CameraMaxZoomDistance = 100000 
+        LocalPlayer.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+    else
+        BtnCamHack.Text = "CAM XUYÊN TƯỜNG: OFF"
+        BtnCamHack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        LocalPlayer.CameraMaxZoomDistance = DefaultMaxZoom
+        LocalPlayer.DevCameraOcclusionMode = DefaultOcclusion
+    end
+end
+BtnCamHack.MouseButton1Click:Connect(ToggleCamHack)
+RunService.RenderStepped:Connect(function()
+    if CamNoClipEnabled then
+        LocalPlayer.CameraMaxZoomDistance = 100000
+        LocalPlayer.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+    end
+end)
+
+-- 6. LOGIC HACK: SPEED + NOCLIP + ANTI-VOID (KHÔNG LỌT MAP)
+local function ToggleHack(state)
+    IsEnabled = state
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if IsEnabled then
+        BtnYes.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        BarrierPart = CreateFixedWall()
+        if root then
+            -- Xóa BodyVelocity cũ nếu có
+            if root:FindFirstChild("ThinhFlyVelocity") then root.ThinhFlyVelocity:Destroy() end
+            if root:FindFirstChild("ThinhFlyGyro") then root.ThinhFlyGyro:Destroy() end
+
+            -- Tạo Lực Bay (Giữ nhân vật không bị rớt)
+            BodyVel = Instance.new("BodyVelocity")
+            BodyVel.Name = "ThinhFlyVelocity"; BodyVel.Parent = root
+            BodyVel.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+            BodyVel.Velocity = Vector3.zero
+            
+            -- Tạo Gyro (Giữ nhân vật không bị lộn vòng)
+            BodyGyro = Instance.new("BodyGyro")
+            BodyGyro.Name = "ThinhFlyGyro"; BodyGyro.Parent = root
+            BodyGyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+            BodyGyro.P = 10000
+            BodyGyro.CFrame = root.CFrame
+        end
+    else
+        BtnYes.BackgroundColor3 = Color3.fromRGB(30, 100, 50)
+        if BarrierPart then BarrierPart:Destroy(); BarrierPart = nil end
+        if root then
+            if root:FindFirstChild("ThinhFlyVelocity") then root.ThinhFlyVelocity:Destroy() end
+            if root:FindFirstChild("ThinhFlyGyro") then root.ThinhFlyGyro:Destroy() end
+        end
+        BodyVel = nil
+        BodyGyro = nil
+    end
+end
+
+BtnYes.MouseButton1Click:Connect(function() ToggleHack(true) end)
+BtnNo.MouseButton1Click:Connect(function() ToggleHack(false) end)
+
+-- LOOP HACK CHÍNH
+RunService.Stepped:Connect(function()
+    if IsEnabled and LocalPlayer.Character then
+        local char = LocalPlayer.Character
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+
+        -- NOCLIP: Đi xuyên vật cản thường
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide == true then 
+                part.CanCollide = false 
+            end
+        end
+
+        -- MOVEMENT: Bay theo hướng nhìn, KHÔNG RƠI
+        if root and hum and BodyVel and BodyVel.Parent == root then
+            if hum.MoveDirection.Magnitude > 0 then
+                -- Bay theo hướng di chuyển, giữ độ cao ổn định (Y = 0 tương đối)
+                local moveDir = hum.MoveDirection
+                BodyVel.Velocity = Vector3.new(moveDir.X * Speed, 0, moveDir.Z * Speed)
+                
+                -- Cập nhật hướng xoay của nhân vật
+                if BodyGyro then 
+                    BodyGyro.CFrame = CFrame.lookAt(root.Position, root.Position + moveDir)
+                end
+            else
+                BodyVel.Velocity = Vector3.zero
+            end
+        elseif IsEnabled and root and not root:FindFirstChild("ThinhFlyVelocity") then
+            ToggleHack(true) -- Tự bật lại nếu bị game xóa
+        end
+    end
+end)
+
+-- LOGIC CHẶN TƯỜNG (ƯU TIÊN TUYỆT ĐỐI)
+-- Chạy trên Heartbeat để xử lý vật lý nhanh hơn
+RunService.Heartbeat:Connect(function()
+    if not IsEnabled or not BarrierPart or not LocalPlayer.Character then return end
+    local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    local relCF = BarrierPart.CFrame:ToObjectSpace(root.CFrame)
+    local relPos = relCF.Position
+    local halfThick = WallThickness / 2 + 2 -- Vùng đệm 2 studs
+    
+    -- Nếu cố tình đi vào vùng tường -> Đẩy ngược lại ngay lập tức
+    if math.abs(relPos.X) < halfThick then
+        local pushSide = (relPos.X > 0) and 1 or -1
+        -- Tính toán vị trí mới nằm ngoài tường
+        local newRelPos = Vector3.new(halfThick * pushSide, relPos.Y, relPos.Z)
+        local worldPos = BarrierPart.CFrame:ToWorldSpace(CFrame.new(newRelPos))
+        
+        -- Set cứng CFrame (Ghi đè mọi loại Noclip)
+        root.CFrame = CFrame.new(worldPos.Position) * root.CFrame.Rotation
+        
+        -- Dừng vận tốc để không bị trượt
+        if BodyVel then BodyVel.Velocity = Vector3.zero end
+    end
+end)
